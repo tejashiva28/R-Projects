@@ -1,0 +1,242 @@
+---
+title: "DSCI_5340_HW3_Group19"
+author: "Shiva Teja Pachchalla, Kamalakar Babu Koradala, Madhuri Manthena"
+date: "2023-11-03"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r}
+library(class)
+universal_bank_data <- read.csv("UniversalBank.csv")
+```
+#1 Partition the data into training (75%) and validation (25%) sets.
+```{r}
+set.seed(42)
+total_rows <- nrow(universal_bank_data)
+train_index <- sample(1:total_rows, 0.75 * total_rows)
+training_data <- universal_bank_data[train_index, ]
+validation_data <- universal_bank_data[-train_index, ]
+cat("Number of rows in training set are:", nrow(training_data), "\n")
+cat("Number of rows in validation set are:", nrow(validation_data), "\n")
+```
+Analysis for Q1 : The dataset contains 5000 rows in total and when training and partition data is split into sets of 75% and 25% respectively, they take up 3750 and 1250 rows each.
+
+#2 Consider the following customer for classification: Age = 40, Experience = 10, Income = 84, Family = 2, CCAvg = 2, Education_1 = 0, Education_2 = 1, Education_3 = 0, Mortgage = 0, Securities Account = 1, CD Account = 1, Online = 1, and Credit Card = 1.
+```{r}
+set.seed(42)
+new_customer <- data.frame(
+  Age = 40,
+  Experience = 10,
+  Income = 84,
+  Family = 2,
+  CCAvg = 2,
+  Education_1 = 0,
+  Education_2 = 1,
+  Education_3 = 0,
+  Mortgage = 0,
+  SecuritiesAccount = 1,
+  CDAccount = 1,
+  Online = 1,
+  CreditCard = 1
+)
+training_data_subset <- training_data[, !colnames(training_data) %in% c("ID", "ZIP Code")]
+predicted_class <- knn(train = training_data_subset, 
+                        test = new_customer, 
+                        cl = training_data_subset$PersonalLoan, 
+                        k = 1)
+cat("Predicted Class for the New Customer:", predicted_class, "\n")
+  
+```
+Analysis for Q2 : Classified the customer with the specified attributes.
+
+#3 Standardize all the data sets using mean and standard deviations.
+```{r}
+set.seed(42)
+standardized_training_data <- as.data.frame(scale(training_data[,-which(names(training_data) == "PersonalLoan")]))
+standardized_validation_data <- as.data.frame(scale(validation_data[, -which(names(validation_data) == "PersonalLoan")]))
+standardized_new_customer <- as.data.frame(scale(new_customer))
+head(standardized_training_data)
+mean_values <- colMeans(standardized_training_data)
+sd_values <- apply(standardized_training_data, 2, sd)
+print(mean_values)
+print(sd_values)
+```
+Analysis for Q3 : Standardized the data. Checked mean and standard deviation to check whether the data got standardized. An ideal standardized data will have a mean values close to 0 and standard deviation values close to 1. The same can be seen in the output above. Hence we can conclude that the data is standardized.
+
+#4 Perform a k-NN classification with all predictors except ID and ZIP code using k = 1. How would this customer be classified?
+
+```{r}
+set.seed(42)
+library(class)
+k <- 1
+training_data_subset <- training_data[, !colnames(training_data) %in% c("ID", "ZIP Code")]
+new_customer <- data.frame(
+  Age = 40,
+  Experience = 10,
+  Income = 84,
+  Family = 2,
+  CCAvg = 2,
+  Education_1 = 0,
+  Education_2 = 1,
+  Education_3 = 0,
+  Mortgage = 0,
+  SecuritiesAccount = 1,
+  CDAccount = 1,
+  Online = 1,
+  CreditCard = 1
+)
+class_labels <- training_data$PersonalLoan
+knn_model <- knn(train = training_data_subset, 
+                  test = new_customer, 
+                  cl = class_labels, 
+                  k = k)
+cat("Predicted Class for the New Customer (k = 1):", knn_model, "\n")
+
+```
+Analysis for Q4 : The predicted class is "1," for k = 1, indicating that the new customer would be classified as accepting the loan based on the closest neighbor in the training data. 
+
+#5 Now find the optimal value of k using the validation data set. What is the optimal k?
+
+```{r}
+set.seed(42)
+k_values <- 1:50  # We can adjust the range as needed
+class_labels <- training_data$PersonalLoan
+accuracy_results <- numeric(length(k_values))
+validation_data_subset <- validation_data[, !colnames(training_data) %in% c("ID", "ZIP Code")]
+for (i in 1:length(k_values)) {
+  k <- k_values[i]
+  knn_model <- knn(train = training_data_subset, 
+                    test = validation_data_subset, 
+                    cl = class_labels, 
+                    k = k)
+    correct_predictions <- sum(knn_model == validation_data$PersonalLoan)
+  total_predictions <- length(validation_data$PersonalLoan)
+  accuracy <- correct_predictions / total_predictions
+    accuracy_results[i] <- accuracy
+}
+optimal_k <- k_values[which.max(accuracy_results)]
+cat("The Optimal k is:", optimal_k, "\n")
+print(accuracy_results[7])
+```
+Analysis for Q5 : When set.seed(42) and for a range set 1-50, we get the optimal K value as 7 with a value of 0.9056.
+
+#6 Using ConfusionMatrix() function from the caret package, print the confusion matrix for the validation data that results from using the optimal k.
+
+```{r}
+options(repos = c("https://cran.stat.ucla.edu/" = "CRAN"))
+install.packages("caret")
+set.seed(42)
+library(caret)
+optimal_k <- 7  
+knn_model_optimal <- knn(train = training_data_subset, 
+                         test = validation_data_subset, 
+                         cl = class_labels, 
+                         k = optimal_k)
+print(length(knn_model_optimal))
+print(length(validation_data$PersonalLoan))
+confusion_matrix <- confusionMatrix(knn_model_optimal, as.factor(validation_data$PersonalLoan))
+print(confusion_matrix)
+
+```
+Analysis for Q6 : Using ConfusionMatrix() function from the caret package, we printed the confusion matrix for the validation data that resulted from using the optimal k=7, as seen in the above output.
+
+#7 Classify the customer specified in Question 2 using the best k.
+
+```{r}
+set.seed(42)
+optimal_k <- 7 
+knn_model_optimal <- knn(train = training_data_subset, 
+                         test = new_customer, 
+                         cl = class_labels, 
+                         k = optimal_k)
+cat("Predicted Class for the New Customer (k =", optimal_k, "):", knn_model_optimal, "\n")
+
+```
+Analysis for Q7 : The predicted class for the new customer using the best k value is 1. This means that, based on the k-NN classification model and the features of the new customer, the model predicts that the new customer is likely to accept a loan offer.
+
+#8 Now repartition the data into three parts: training, validation, and test sets (50%, 30%, and 20%)
+
+```{r}
+set.seed(42)
+shuffled_indices <- sample(1:nrow(universal_bank_data))
+total_rows <- nrow(universal_bank_data)
+train_percent <- 0.5
+validation_percent <- 0.3
+test_percent <- 0.2
+train_rows <- as.integer(train_percent * total_rows)
+validation_rows <- as.integer(validation_percent * total_rows)
+training_data_final <- universal_bank_data[shuffled_indices[1:train_rows], ]
+validation_data_final <- universal_bank_data[shuffled_indices[(train_rows + 1):(train_rows + validation_rows)], ]
+test_data_final <- universal_bank_data[shuffled_indices[(train_rows + validation_rows + 1):total_rows], ]
+cat("Number of rows in training set after repartition:", nrow(training_data_final), "\n")
+cat("Number of rows in validation set after repartition:", nrow(validation_data_final), "\n")
+cat("Number of rows in test set after repartition:", nrow(test_data_final), "\n")
+
+```
+Analysis for Q8 : The 5000 row dataset is split into parts as mentioned and the output is displayed as required.
+
+#9 Apply the k-NN method with the optimal k chosen above.
+
+```{r}
+set.seed(42)
+optimal_k <- 7  
+class_labels_train <- training_data_final$PersonalLoan
+knn_model_optimal <- knn(train = training_data_final, 
+                         test = training_data_final, 
+                         cl = class_labels_train, 
+                         k = optimal_k)
+class_labels_validation <- validation_data_final$PersonalLoan
+class_labels_test <- test_data_final$PersonalLoan
+knn_model_validation <- knn(train = training_data_final, 
+                            test = validation_data_final, 
+                            cl = class_labels_train, 
+                            k = optimal_k)
+knn_model_test <- knn(train = training_data_final, 
+                      test = test_data_final, 
+                      cl = class_labels_train, 
+                      k = optimal_k)
+confusion_matrix <- confusionMatrix(knn_model_test, as.factor(test_data_final$PersonalLoan))
+print(confusion_matrix)
+
+```
+Analysis for Q9 : We have performed k-NN classification on the training, validation, and test datasets using the optimal k value (7). We have also calculated and printed the confusion matrix for the test dataset.
+
+#10  Compare the confusion matrix of the test set with that of the training and validation sets. Comment on the differences and their reason.
+
+```{r}
+set.seed(42)
+library(caret)
+optimal_k <- 7  
+class_labels_train <- training_data_final$PersonalLoan
+knn_model_optimal <- knn(train = training_data_final, 
+                         test = training_data_final,  
+                         cl = class_labels_train, 
+                         k = optimal_k)
+class_labels_validation <- validation_data_final$PersonalLoan
+class_labels_test <- test_data_final$PersonalLoan
+knn_model_validation <- knn(train = training_data_final, 
+                            test = validation_data_final, 
+                            cl = class_labels_train, 
+                            k = optimal_k)
+knn_model_test <- knn(train = training_data_final, 
+                      test = test_data_final, 
+                      cl = class_labels_train, 
+                      k = optimal_k)
+confusion_matrix_train <- confusionMatrix(knn_model_optimal, as.factor(class_labels_train))
+confusion_matrix_validation <- confusionMatrix(knn_model_validation, as.factor(class_labels_validation))
+confusion_matrix_test <- confusionMatrix(knn_model_test, as.factor(class_labels_test))
+print("Confusion Matrix for Training Data:")
+print(confusion_matrix_train)
+print("Confusion Matrix for Validation Data:")
+print(confusion_matrix_validation)
+print("Confusion Matrix for Test Data:")
+print(confusion_matrix_test)
+
+```
+Analysis for Q10 :- 
+->The training data has the highest accuracy (90.56%) and the lowest false negative rate (0.04%). This is because the model is trained on the training data, so it is naturally better at predicting on this data.
+->The validation data has a slightly higher accuracy (90.80%) than the test data (90.00%), but a higher false positive rate (9.93% vs. 10.99%). This suggests that the model is overfitting to the validation data, meaning that it is learning the patterns in the validation data too well, and is therefore not generalizing well to new data.
+->The test data has the lowest accuracy (90.00%) and the highest false positive rate (10.99%). This is because the model has never seen the test data before, so it is not as good at predicting on this data.
+->The reason for these differences is overfitting. The model i learning noise in the training data, resulting in optimistic predictions on both the training and validation sets. This overfitting is then reflected in the test set's results.

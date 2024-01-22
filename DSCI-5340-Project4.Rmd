@@ -1,0 +1,152 @@
+---
+title: "DSCI_5340_HW4_Group19"
+author: "Shiva Teja Pachchalla, Kamalakar Babu Koradala, Madhuri Manthena"
+date: "2023-11-10"
+output: pdf_document
+---
+
+#1  Import the heart disease data. Make any necessary pre-processing before moving on the next step.
+```{r}
+library(tidyverse)
+library(caret)
+set.seed(42)
+heart_data <- read.csv("C:/Users/tejas/Downloads/heart_disease.csv")
+str(heart_data)
+sum(is.na(heart_data))
+summary(heart_data)
+sapply(heart_data, function(x) length(unique(x)))
+table(heart_data$Target)
+str(heart_data)
+
+```
+
+#2 Partition the data into two parts: training (80%) and test (20%).
+```{r}
+set.seed(42)  
+total_rows <- nrow(heart_data)
+train_index <- sample(1:total_rows, 0.8 * total_rows)
+
+training_data <- heart_data[train_index, ]
+test_data <- heart_data[-train_index, ]
+
+cat("Number of rows in training set:", nrow(training_data), "\n")
+cat("Number of rows in test set:", nrow(test_data), "\n")
+
+preprocess_model <- preProcess(training_data[,-14], method = c("center", "scale"))
+training_data_standardized <- predict(preprocess_model, training_data[,-14])
+heartdisease_column <- training_data[, 14]
+training_data_standardized <- cbind(training_data_standardized, heartdisease = heartdisease_column)
+training_data_standardized$heartdisease <- factor(training_data_standardized$heartdisease, levels = c(0, 1))
+preprocess_model <- preProcess(test_data[,-14], method = c("center", "scale"))
+test_data_standardized <- predict(preprocess_model, test_data[,-14])
+heartdisease_column <- test_data[, 14]
+test_data_standardized <- cbind(test_data_standardized, heartdisease = heartdisease_column)
+test_data_standardized$heartdisease <- factor(test_data_standardized$heartdisease, levels = c(0, 1))
+
+```
+
+```{r}
+library(caret)
+library(e1071)
+
+#Q3. Use SVM algorithm to model the presence of heart disease in a patient using a linear specification.
+set.seed(42) 
+svm_model <- svm(heartdisease ~ ., data = training_data, kernel = "linear")
+svm_model
+
+#Q4 Using trainControl() function from the Caret package set the following resampling criteria: repeatedcv resampling method, 10-fold cross-validation and repeat this process 3 times. Set these values by using method=, number=, and repeats= options.
+set.seed(42) 
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 2)
+
+#Q5 Use the preProcess() function from Caret package to standardize the training data while building the model.
+set.seed(42) 
+svm_model_standardized <- svm(heartdisease ~ ., data = training_data_standardized, kernel = "linear")
+training_data$heartdisease
+summary(training_data_standardized)
+print(svm_model)
+print(svm_model_standardized)
+```
+#6 Now using the model above, generate the confusion matrix for the test data. What is the sensitivity from this model?
+
+```{r}
+set.seed(42) 
+predictions <- predict(svm_model_standardized, test_data_standardized)
+conf_matrix1 <- table(Actual = test_data_standardized$heartdisease, Predicted = predictions)
+conf_matrix1
+accuracy1 <- sum(diag(conf_matrix1)) / sum(conf_matrix1)
+cat("Accuracy:", accuracy1, "\n")
+
+true_positives1 <- conf_matrix1[2, 2]
+false_negatives1 <- conf_matrix1[2, 1]
+
+sensitivity1 <- true_positives1 / (true_positives1 + false_negatives1)
+cat("Sensitivity1 is", sensitivity1, "\n")
+
+```
+
+#7 Run a second SVM model using the grid search hyperparameter optimization
+method for C. For this run, choose all values between 0 and 2.5 (both included) with an increment of 0.1.
+
+```{r}
+set.seed(42) 
+library(e1071)
+library(caret)
+tune_grid <- expand.grid(C = seq(0, 2.5, by = 0.1))
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+svm_tune <- train(
+  heartdisease ~ .,
+  data = training_data_standardized,
+  method = "svmLinear",
+  trControl = ctrl,
+  tuneGrid = tune_grid
+)
+print(svm_tune)
+```
+#8 Generate a plot to examine the relationship between accuracy and the cost
+hyperparameter in the second SVM model.
+
+```{r}
+set.seed(42) 
+library(ggplot2)
+ggplot(svm_tune$results, aes(x = C, y = Accuracy)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Cost Hyperparameter (C)", y = "Accuracy") +
+  theme_minimal()
+```
+
+#9 Generate a confusion matrix using the latest model. What is the sensitivity from this model?
+
+```{r}
+set.seed(42) 
+best_accuracy_index <- which.max(svm_tune$results$Accuracy)
+best_C <- svm_tune$results$C[best_accuracy_index]
+best_model <- svm(heartdisease ~ ., data = training_data_standardized, kernel = "linear", cost = best_C)
+print(best_model)
+predictions <- predict(best_model, test_data_standardized)
+conf_matrix2 <- table(Actual = test_data_standardized$heartdisease, Predicted = predictions)
+conf_matrix2
+accuracy2 <- svm_tune$results$Accuracy[best_accuracy_index]
+cat("Accuracy:", accuracy2, "\n")
+
+true_positives2 <- conf_matrix2[2, 2]
+false_negatives2 <- conf_matrix2[2, 1]
+
+sensitivity2 <- true_positives2 / (true_positives2 + false_negatives2)
+
+cat("Sensitivity2 is:", sensitivity2, "\n")
+```
+
+#10 Has the performance of the model improved with grid search? Explain using
+numbers from the confusion matrices from both models.
+```{r}
+set.seed(42) 
+cat("Confusion Matrix for General Standardized SVM model:\n")
+conf_matrix1
+cat("Accuracy for General Standardized SVM model:", accuracy1, "\n")
+cat("Confusion Matrix for Grid-Search Optimized SVM model:\n")
+conf_matrix2
+cat("Accuracy for Grid-Search Optimized SVM model:", accuracy2, "\n")
+print("Yes, the performance of the model improved with grid search. By the accuracies calculated from confusion matrices of the respective models we can clearly see that there's an improvement in accuracy for the Grid-Search Optimized SVM model over the usual normal SVM model without any optimizations.")
+```
+Hence, the performance of the model improved with grid search. By the accuracies calculated from confusion matrices of the respective models we can clearly see that there's an improvement in accuracy for the Grid-Search Optimized SVM model over the usual normal SVM model without any optimizations.The accuracy of the model has increased from 0.81 to 0.83. This means that the model is now able to correctly classify 2% more observations. 

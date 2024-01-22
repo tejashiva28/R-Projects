@@ -1,0 +1,111 @@
+---
+title: "DSCI 5340-Homework1"
+author: "Shiva Teja Pachchalla, Kamalakar Babu Koradala, Madhuri Manthena"
+date: "2023-09-22"
+output: pdf_document
+---
+
+#First step we need to do is installing and loading required packages into R.
+```{r}
+pacman::p_load(dplyr,fpp3,GGally,gridExtra)
+theme_set(theme_classic())
+```
+
+
+##Accessing ("canadian_gas")Dataset from the fpp3 package installed by function install.packages().
+```{r}
+canadian_gas
+```
+
+#1What type of Box-Cox transformation would be helpful for the data? Explain your answer.
+
+```{r}
+p1 <- canadian_gas %>%autoplot(Volume) + labs(y = "Volume")
+canadian_gas %>%features(Volume, features = guerrero)
+p2 <- canadian_gas %>% autoplot(box_cox(Volume, 0.577)) + 
+  labs(y = "box_cox transferred volume")
+  grid.arrange(p1, p2, nrow =2)
+
+```
+Analysis for Q1: A lambda (λ) value of approximately 0.5768 suggests that you should use a positive power transformation in the Box-Cox transformation.We should choose to apply a positive power transformation to the data using this exact value of lambda which is around 0.5768. By correcting positive skewness in the data, we can use this transformation to make it more like a normal distribution.
+Even though an optimal lambda is calculated from the feature called 'guerrero' which is 0.577, the plot of monthly Canadian gas production volume showing a seasonality of 1 year and a seasonal variance that is relatively low from 1960 through 1978, larger from 1978 through 1988 and smaller from 1988 through 2005. Since the seasonal variation increases and then decreases.Box-Cox transformation is only good when the variance is increasing or decreasing over time. Hence a positive transormation box cox would help the dataset stabilize variance and make the data follow a normal distribution.
+
+#2(a)Subset the canadian_gas data and keep observations from March 1990 to February 2005. (b)Plot the data using autoplot(), gg_subseries(), and gg_season(). (c)Describe the presence (or absence) of seasonality in the data.
+```{r}
+#a.)First part of the question requires us to subset the data to keep observations from March 1990 to February 2005.
+CanadianGas <- canadian_gas %>% filter_index("1990 Mar"~"2005 Feb") %>%       
+  select(c(Month,Volume))
+  
+CanadianGas
+
+sapply(CanadianGas, mean, na.rm = TRUE)
+sapply(CanadianGas,max,na.rm=TRUE)
+sapply(CanadianGas,min,na.rm=TRUE)
+
+```
+
+Dataset Analysis: 
+The dataset has all records pertaining to canadian gases from 1960 Jan to 2005 Feb. We have filtered data to select only data from March 1990 to Feb 2005.The data consists of Month and Volume.Data is shown for Canada's monthly gas consumption.The mean, min and max of volume are 15.95, 10.12 and 19.52 respectively, rounded to 2 decimals. 
+The data contains a monthly time series in the 'tsibble' format.
+
+##b.)Second part of the question requires us plotting the canadian_gas dataset.
+```{r}
+#Here we plot data using autoplot(), gg_subseries(), and gg_season() functions respectively.
+ #AutoPlot
+Plot <- CanadianGas %>% autoplot(Volume)
+Plot
+
+ #sub-series plot
+Canseriesplot <- CanadianGas %>% gg_subseries(Volume)
+Canseriesplot
+
+ #Seasonal-plot
+CanSeasonalplot <- CanadianGas %>% gg_season(Volume)
+CanSeasonalplot
+```
+
+#c.)Describe the presence (or absence) of seasonality in the data.
+The auto plot for Canadian gas displays seasonality, but it does not appear to be consistent across the amount of months. The Canseriesplot demonstrates that the seasonality pattern is inconsistent as the mean of each facet varies depending on the season.We can see that production rose during the winter , whereas it dropped during the summer.Seasonality has gone up from 1995 to 2001.The Canseriesplot shows that the 'mean' of each facet is different for each season whereas the Canseasonalplot shows the seasonal pattern between 1990-2005 from Jan to Dec. The variation differences in usage between the summer and winter is more in those years.
+
+
+```{r}
+#3)Perform an STL decomposition of the data. Plot the seasonal component from STL decomposition using gg_season(). Does the seasonal shape change over time? Explain.
+Decomposition <- CanadianGas %>% model(STL(Volume ~ trend(window=25)+season(window=25),robust=TRUE)) 
+components(Decomposition) %>% autoplot()
+#Plot a seasonally-adjusted series using the results from the model above. Using this plot,explain why the seasonally-adjusted series is different from the original series.
+DecompositionSTL <- CanadianGas %>% model(STL(Volume ~trend(window=25)+season(window=25),robust=TRUE))
+components(DecompositionSTL) %>% gg_season() +
+  ggtitle("STL Decomposition by season")
+```
+
+Analysis 3: Similar to the original data, which shows a positive trend, is the trend component. In 1990, the seasonal component was stronger initially before declining and remaining stable in subsequent years.So, indeed, the seasonal shape has changed over time. Between 1990-1996, the form is very irregular, with big gaps between each year indicating sizable fluctuations in the overall volume. The amount of seasonal variations is decreasing over time. Volume plotted month by month on the yearly trend line demonstrates that the seasonal pattern is displaying stability to some extent but is not entirely consistent. 
+
+```{r}
+#4.)Plot a seasonally-adjusted series using the results from the model above. Using this plot,explain why the seasonally-adjusted series is different from the original series.
+SASplot <- CanadianGas %>% autoplot(Volume,colour='green')+ autolayer(components(DecompositionSTL),season_adjust,colour='red')+autolayer(components(DecompositionSTL),trend,colour='black')+ggtitle("Seasonally Adjusted Series")
+SASplot
+```
+
+
+Analysis for Q4: There is a consistent and positive increase in the trend as seen by the seasonally adjusted data plot below. The seasonally adjusted data is obtained, When the seasonality is removed from the data. 
+This seasonally adjusted data has less fluctuation. In comparison to the original series, it appears to be more consistent over the entire data set. This will make the forecasting process much more accurate. 
+
+```{r}
+#5.)Next, perform decomposition using SEATS and X-11 decomposition methods. How are they different from the results obtained using the STL decomposition?
+CanadianGas %>%
+model(seats = X_13ARIMA_SEATS(Volume ~ seats())) %>%
+components() %>%
+autoplot() +
+labs(title ="SEATS Decomposition of Monthly Gas Production (Canada)")
+```
+
+```{r}
+CanadianGas %>%
+model(x11 = X_13ARIMA_SEATS(Volume ~ x11())) %>%
+components() %>%
+autoplot()+
+labs(title = "X11 Decomposition of Monthly Gas Production(Canada")
+```
+
+Analysis for Q5: When compared to STL decomposition, SEATS' residual and seasonality are not as uniform. In SEATS, it is more irregular signifying more variation through time. X11, on the other hand, combines multiplicative and additive decomposition. Consequently, none of the three—seasonal variation, residual, and trend line—are as smooth as they are in STL.The results from the trend and seasonal components from both are fairly close. The seasonal component of SEATS has  decreased from 1994 to 2000. The seasonal elements from 1994 to 2000, showed a falling tendency and subsequently an upward trend,where the outcomes are very similar.Consequently, none of the three—seasonal variation, residual, and trend line—are as smooth as they are in STL.
+

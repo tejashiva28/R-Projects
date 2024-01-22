@@ -1,0 +1,112 @@
+---
+title: "DSCI5340_HW2_Group19"
+author: "Shiva Teja Pachchalla, Kamalakar Babu Koradala, Madhuri Manthena"
+date: "2023-09-30"
+output: pdf_document
+---
+
+#First step we need to do is installing and loading required packages into R.
+```{r}
+pacman::p_load(dplyr,fpp3,GGally,gridExtra,broom)
+theme_set(theme_classic())
+```
+
+##Accessing ("insurance")Dataset from the fpp3 package installed by function install.packages().
+```{r}
+insurance
+```
+
+#1. Produce a time plot of the data and describe the patterns. Identify any unusual or unexpected fluctuations in the time series.
+
+```{r}
+insurance %>% 
+  pivot_longer(c(Quotes,TVadverts)) %>%
+  autoplot(value) + labs(title="Component Expenditures",y="QUOTES AND ADVERTS RATES")
+```
+
+Analysis for Q1: Here we are using the tidyverse package in R to pivot the data from wide to long format and then create a line plot using the autoplot function to visualize the values of the Quotes and TVadverts.It will generate a line plot that visualizes the rates of Quotes and TVadverts components over time, with each component represented by a different line. The y-axis represents the rates, and the x-axis represents time.The above plot doesn't indicate any seasonality as the plot is irregular and uneven. It is a cyclic patterned plot. From the plot we can say that the expenditure for tv adverts and quotes are directly proportional i.e, when TVadverts increases Quotes also increases and vice versa.
+
+#2.Fit a regression model with Quotes as the dependent variable and a linear trend and seasonal dummies as explanatory variables.
+
+```{r}
+model_insurance <- insurance %>% model(lm = TSLM(Quotes ~ TVadverts)) 
+report(model_insurance)
+```
+Analysis for Q2: Here we are fitting a linear regression model to our insurance dataset, with Quotes as the dependent variable and TVadverts as the independent variable. Then, it generates a report for the model_insurance model. The TVadverts coefficient is statistically significant because it has a strong correlation with Quotes and a very low p-value(<2.22e-16).
+
+#3. Create a plot showing two lines – a fitted line from the above regression and a line with actual quotes. What do you observe in this plot?
+
+```{r}
+augment(model_insurance) %>% ggplot(aes(x = Month)) +
+  geom_line(aes(y=Quotes,color="Actual Expenditures"),lwd=0.50) +
+  geom_line(aes(y = .fitted,color= "Fitted Expenditures"),lwd=0.50) +
+  labs(y = NULL, title = "Fitted vs. Actual Expenditures") + 
+  guides(color = guide_legend(title = "Legend Titles"))
+```
+Analysis for Q3: Using the R ggplot2 package, the code generates a line plot to compare fitted and real spending over time. The final plot will show lines representing both actual and fitted expenditures over time, with contrasting colors and a legend to help identify them. From the above plot we can observe that both fitted line and actual line are very close to each other. We can conclude that the model is a good fit as actual and predicted values are closely matched.
+
+#4. Create a scatter plot showing fitted v actual. Do you observe any patterns?
+
+```{r}
+augment(model_insurance) %>% ggplot(aes(x = .fitted, y = Quotes)) +
+  geom_point(color = "red") + labs(y = "Predicted Expenditures",
+       x = "Actual Expenditures",
+       title = "Scatterplot for Predicted vs. Actual Expenditures") +
+  geom_abline(intercept = 0, slope = 1, color = "black")
+```
+
+Analysis for Q4: The above code creates a scatterplot with a reference line indicating a 1:1 relationship between projected (fitted) and actual spending. Each data point in the resulting scatterplot is represented by a red point, with the x-coordinate denoting expected expenses and the y-coordinate denoting actual expenses. We may evaluate the model's accuracy by comparing the anticipated and actual values to the black reference line, which represents the ideal situation.We can see that our plot has a positive slope and is grouped with lots of data points. Additionally, we are aware that a scatterplot with a positive slope and data points that are tightly grouped together around the reference line denotes a strong positive linear relationship and a high degree of correlation between the anticipated (fitted) and actual values.
+
+#5. Plot the residuals against time. Do these plots reveal any autocorrelation in the model?
+
+```{r}
+model_insurance %>% gg_tsresiduals()
+residuals <- residuals(model_insurance)
+acf_residuals <- acf(residuals, lag.max = 10)
+```
+
+Analysis for Q5: For our time series linear regression model, model_insurance, we are conducting residual analysis. Then, as requested, we produced an ACF plot to evaluate autocorrelation in the residuals.Out of 16 delays, there are five outliers visible in the ACF plot. These anomalies imply that the residuals exhibit significant autocorrelation. The residuals' autocorrelation suggests that they are not independent. The residuals' histogram is clearly heavily skewed to the right, as can be seen. The residuals' skewness shows that they do not have a perfectly normal distribution. 
+Hence the plots are indeed revealing an autocorrelation in the model.
+
+#6. Generate box plots of the residuals for each month. Do these plots reveal any patterns in the above model?
+
+```{r}
+augment(model_insurance) %>% mutate(month = month(Month, label = TRUE)) %>%
+  ggplot(aes(x = month, y = .innov)) + geom_boxplot() +
+  labs(x = "Month", y = "Customized Residuals", title = "Customized Residuals by Month")
+
+```
+
+Analysis for Q6: Based on the model_insurance model, we've developed a boxplot of customizable residuals per month. A normal distribution is not visible in the box plots from May to December. For the box plots from May to November, the median is in the first quartile. The histogram of the residuals' skewness indicates that from May to November, the mean is greater than the median. These observations collectively imply that the residuals' distribution is not normally distributed.
+
+#7. Run a Ljung-Box test and interpret the results.
+
+```{r}
+augment(model_insurance) %>% 
+  features(.resid,ljung_box,lag=10,dof=5)
+```
+
+Analysis for Q7: We calculated features of the residuals of the model_insurance model and performs a Ljung-Box test for autocorrelation in the residuals. The Ljung-Box test's results offer convincing evidence that the null hypothesis—which holds that the residuals are independently distributed with no autocorrelation—is false. The residual autocorrelations are statistically significant, as seen by the low p-value.
+
+#8. Interpret the coefficients – the one associated with the trend variable and at least one associated with a seasonal variable.
+
+```{r}
+model_insurance_custom <- insurance %>% model(TSLM(Quotes ~ trend() + season()))
+report(model_insurance_custom)
+```
+
+Analysis for Q8: Our insurance dataset was fitted with a fresh time series linear regression model (TSLM). Both a trend component and a seasonal component are included in this model. We produced a report for the model_insurance_custom model after fitting the model. The F-statistic has 12 and 27 degrees of freedom and is 0.6619. It evaluates the model's overall importance. The model as a whole is not statistically significant, according to the associated p-value of 0.77112, which is relatively high. The model has a non-zero intercept because the intercept is statistically significant. Due to its high p-value (0.757), the trend component is not statistically significant. Due to their large p-values, the seasonal components are typically not statistically significant. The modified R-squared and the F-statistic, which show how well the model is fitting overall, imply that it might not be able to fully account for the variation in the Quotes variable. The model may not be a good fit for the data if the adjusted R-squared is negative.
+
+#9. Use your regression model to forecast the monthly Quotes for 24 months ahead. Produce prediction intervals for those forecasts.
+
+```{r}
+model_insurance_custom %>%forecast() %>% autoplot()
+```
+
+Analysis for Q9: The above code generates a forecast plot based on the model_insurance_custom and visualizes the forecasted values.The numbers projected for the following 36 months nearly match the trend seen in the actual data. This shows that the underlying patterns in the data are being adequately captured by the time series linear regression model. The prediction intervals in light blue and dark blue show the range of uncertainty surrounding the predicted values. In conclusion, the model seems to be capable of making accurate predictions for the future, and the prediction intervals provide important information about the possible range of outcomes. 
+
+#10. Do you have any recommendations for improving the model?
+
+We can reevaluate whether any of the seasonal components should be included in the model given that their lack of statistical significance can make the model more straightforward and easier to understand.
+Checking the data again for any possible outliers and deciding factors. 
+If the residuals fail normality tests, show no discernible patterns, and exhibit no autocorrelation, they can be compared to white noise.
